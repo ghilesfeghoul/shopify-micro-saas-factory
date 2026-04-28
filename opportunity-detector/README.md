@@ -670,6 +670,8 @@ Causes habituelles :
 ## License
 
 Privé. Tous droits réservés. Ce code fait partie du projet Micro-SaaS Factory.
+
+
 CEO: [Ghiles FEGHOUL](ghiles.feghoul@gmail.com)
 ---
 
