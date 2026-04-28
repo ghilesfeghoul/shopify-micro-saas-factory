@@ -671,8 +671,6 @@ Causes habituelles :
 
 Privé. Tous droits réservés. Ce code fait partie du projet Micro-SaaS Factory.
 
-
-CEO: [Ghiles FEGHOUL](ghiles.feghoul@gmail.com)
 ---
 
-*Dernière mise à jour : avril 2026 — version 1.2.0*
+*Dernière mise à jour : avril 2026 — version 1.2.0 - CEO: [Ghiles FEGHOUL](ghiles.feghoul@gmail.com)* 
