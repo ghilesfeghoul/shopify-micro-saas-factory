@@ -3,6 +3,7 @@
   "version": "1.2.0",
   "description": "Agent détecteur d'opportunités Shopify — backend LLM interchangeable (API ou Claude Code)",
   "main": "dist/api/server.js",
+  "author": "Ghiles FEGHOUL <ghiles.feghoul@gmail.com>",
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/api/server.ts",
