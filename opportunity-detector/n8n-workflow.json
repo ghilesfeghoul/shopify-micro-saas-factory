@@ -1,0 +1,167 @@
+{
+  "name": "Opportunity Detector — Weekly Scan",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every Monday 8am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.DETECTOR_URL}}/scan",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-webhook-secret",
+              "value": "={{$env.N8N_WEBHOOK_SECRET}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "source",
+              "value": "all"
+            },
+            {
+              "name": "minScore",
+              "value": 30,
+              "valueType": "number"
+            },
+            {
+              "name": "maxOpportunities",
+              "value": 10,
+              "valueType": "number"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "id": "trigger-scan",
+      "name": "Trigger Detector Scan",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-opps",
+              "leftValue": "={{$json.result.opportunitiesSaved}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-results",
+      "name": "Has new opportunities?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.DETECTOR_URL}}/opportunities",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "detected"
+            },
+            {
+              "name": "minScore",
+              "value": "30"
+            },
+            {
+              "name": "limit",
+              "value": "10"
+            }
+          ]
+        }
+      },
+      "id": "fetch-opps",
+      "name": "Fetch Top Opportunities",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.NOTIFICATION_FROM_EMAIL}}",
+        "toEmail": "={{$env.NOTIFICATION_TO_EMAIL}}",
+        "subject": "🎯 {{$('Trigger Detector Scan').item.json.result.opportunitiesSaved}} new Shopify opportunities detected",
+        "emailFormat": "html",
+        "html": "<h2>Weekly Opportunity Scan Results</h2><p><strong>Scraped:</strong> {{$('Trigger Detector Scan').item.json.result.signalsScraped}} signals<br><strong>Saved:</strong> {{$('Trigger Detector Scan').item.json.result.opportunitiesSaved}} opportunities<br><strong>Duration:</strong> {{Math.round($('Trigger Detector Scan').item.json.result.durationMs / 1000)}}s</p><h3>Top Opportunities</h3><ul>{{$json.opportunities.map(o => `<li><strong>[${o.opportunityId}] ${o.title}</strong> — Score ${o.totalScore}/50 (${o.priority})<br><em>${o.problemStatement}</em><br>Pricing: ${o.suggestedPricing} | Dev: ${o.estimatedDevTime}</li>`).join('')}}</ul><p><a href=\"{{$env.DETECTOR_URL}}/opportunities\">View all opportunities →</a></p>"
+      },
+      "id": "send-email",
+      "name": "Email Digest",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "content": "= No new opportunities this week. Sources: {{$('Trigger Detector Scan').item.json.result.signalsScraped}} signals scraped."
+      },
+      "id": "no-opps-log",
+      "name": "Log: No new opps",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [900, 400]
+    }
+  ],
+  "connections": {
+    "Every Monday 8am": {
+      "main": [[{ "node": "Trigger Detector Scan", "type": "main", "index": 0 }]]
+    },
+    "Trigger Detector Scan": {
+      "main": [[{ "node": "Has new opportunities?", "type": "main", "index": 0 }]]
+    },
+    "Has new opportunities?": {
+      "main": [
+        [{ "node": "Fetch Top Opportunities", "type": "main", "index": 0 }],
+        [{ "node": "Log: No new opps", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch Top Opportunities": {
+      "main": [[{ "node": "Email Digest", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

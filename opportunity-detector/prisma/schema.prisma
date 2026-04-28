@@ -1,0 +1,94 @@
+// Prisma schema for opportunity detector
+// To migrate to PostgreSQL: change `provider` to "postgresql" and update DATABASE_URL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Raw signals scraped from sources (before AI analysis)
+model RawSignal {
+  id          String   @id @default(cuid())
+  source      String   // "shopify_appstore" | "reddit" | "shopify_community" | "producthunt"
+  sourceUrl   String   @unique
+  signalType  String   // "negative_review" | "forum_post" | "product_launch"
+  title       String
+  content     String
+  metadata    String   // JSON: rating, upvotes, replies, app_name, etc.
+  scrapedAt   DateTime @default(now())
+  processed   Boolean  @default(false)
+  processedAt DateTime?
+
+  // Relation to opportunities derived from this signal
+  opportunities OpportunitySignal[]
+
+  @@index([source, processed])
+  @@index([scrapedAt])
+}
+
+// Opportunities identified after AI analysis
+model Opportunity {
+  id                String   @id @default(cuid())
+  opportunityId     String   @unique // Human-readable: OPP-XXXX
+  title             String
+  problemStatement  String
+
+  // Scores (0-10 each)
+  marketSize        Int
+  urgency           Int
+  feasibility       Int
+  monetization      Int
+  competition       Int
+  totalScore        Int      // Sum or weighted aggregate
+
+  // Recommendations
+  suggestedPricing  String
+  estimatedDevTime  String
+  competitorAnalysis String
+  recommendedFeatures String  // JSON array
+
+  // Status pipeline
+  status            String   @default("detected") // detected | reviewed | building | launched | killed
+  priority          String   @default("medium")   // low | medium | high | critical
+
+  // Metadata
+  detectedAt        DateTime @default(now())
+  reviewedAt        DateTime?
+  reviewNotes       String?
+
+  // Relations
+  signals           OpportunitySignal[]
+
+  @@index([status, totalScore])
+  @@index([detectedAt])
+}
+
+// Many-to-many: an opportunity can be derived from multiple signals
+model OpportunitySignal {
+  id            String      @id @default(cuid())
+  opportunityId String
+  rawSignalId   String
+
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  rawSignal     RawSignal   @relation(fields: [rawSignalId], references: [id], onDelete: Cascade)
+
+  @@unique([opportunityId, rawSignalId])
+}
+
+// Track scan runs for observability
+model ScanRun {
+  id              String   @id @default(cuid())
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  source          String   // "all" | specific source
+  signalsScraped  Int      @default(0)
+  opportunitiesFound Int   @default(0)
+  status          String   @default("running") // running | completed | failed
+  errorMessage    String?
+
+  @@index([startedAt])
+}

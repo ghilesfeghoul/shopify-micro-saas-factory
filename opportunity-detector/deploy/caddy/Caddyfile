@@ -1,0 +1,81 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  Caddyfile — Reverse proxy for Opportunity Detector              ║
+# ║                                                                   ║
+# ║  Caddy handles:                                                  ║
+# ║  - Automatic Let's Encrypt HTTPS                                 ║
+# ║  - IP allowlist at the network edge (couche 3)                   ║
+# ║  - mTLS for high-security mode (optional, couche 2 hardened)     ║
+# ║  - Security headers                                              ║
+# ║                                                                   ║
+# ║  The Node.js API only listens on 127.0.0.1, so Caddy is the     ║
+# ║  ONLY way in.                                                    ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+# Replace with your actual Tailscale hostname or domain
+detector.your-tailnet.ts.net {
+    # ── Tailscale IPs only (CGNAT range) ──────────────────────────
+    # If your n8n is on the same tailnet, this is sufficient
+    @tailscale_only {
+        remote_ip 100.64.0.0/10
+    }
+
+    # ── Block everything that's not Tailscale ─────────────────────
+    @blocked {
+        not remote_ip 100.64.0.0/10
+    }
+    handle @blocked {
+        respond "Forbidden" 403
+    }
+
+    # ── Logging for audit trail ───────────────────────────────────
+    log {
+        output file /var/log/caddy/detector-access.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+        format json
+    }
+
+    # ── Security headers ──────────────────────────────────────────
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        # Remove server fingerprinting
+        -Server
+    }
+
+    # ── Reverse proxy to local Node.js ────────────────────────────
+    handle @tailscale_only {
+        reverse_proxy 127.0.0.1:3000 {
+            # Forward real client IP for the app's IP allowlist (couche 3 layer 2)
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+
+            # Reasonable timeouts for long-running scans (up to 10 min)
+            transport http {
+                response_header_timeout 600s
+                read_timeout 600s
+            }
+        }
+    }
+}
+
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  OPTIONAL: Public HTTPS endpoint with mTLS                       ║
+# ║                                                                   ║
+# ║  Use this ONLY if you can't put n8n on Tailscale.                ║
+# ║  Requires generating a client certificate for n8n.               ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+# detector-public.your-domain.com {
+#     tls {
+#         client_auth {
+#             mode require_and_verify
+#             trusted_ca_cert_file /etc/caddy/n8n-ca.crt
+#         }
+#     }
+#
+#     reverse_proxy 127.0.0.1:3000
+# }

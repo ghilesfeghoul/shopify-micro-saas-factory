@@ -1,0 +1,65 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  Caddyfile — Docker Compose stack                                ║
+# ║                                                                   ║
+# ║  Two virtual hosts:                                              ║
+# ║  - n8n.{your-domain} : the n8n UI                               ║
+# ║  - detector.{your-domain} : the detector API (Tailscale-only)   ║
+# ║                                                                   ║
+# ║  Replace YOUR_DOMAIN with your actual domain or use a Tailscale ║
+# ║  hostname like detector.your-tailnet.ts.net                      ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+# n8n UI — public HTTPS, protected by basic auth at the n8n level
+n8n.YOUR_DOMAIN.com {
+    reverse_proxy n8n:5678 {
+        transport http {
+            response_header_timeout 600s
+            read_timeout 600s
+        }
+    }
+
+    log {
+        output file /data/n8n-access.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Frame-Options "DENY"
+        -Server
+    }
+}
+
+# Detector API — restricted to Tailscale network only
+# If you don't use Tailscale, n8n inside the Docker network reaches detector
+# directly via http://detector:3000, no external exposure needed.
+detector.YOUR_DOMAIN.com {
+    @tailscale_only {
+        remote_ip 100.64.0.0/10
+    }
+    @blocked {
+        not remote_ip 100.64.0.0/10
+    }
+    handle @blocked {
+        respond "Forbidden" 403
+    }
+
+    handle @tailscale_only {
+        reverse_proxy detector:3000 {
+            header_up X-Real-IP {remote_host}
+            transport http {
+                response_header_timeout 600s
+                read_timeout 600s
+            }
+        }
+    }
+
+    log {
+        output file /data/detector-access.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+    }
+}
