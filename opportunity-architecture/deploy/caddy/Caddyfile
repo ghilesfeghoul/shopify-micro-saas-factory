@@ -1,0 +1,41 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  Caddyfile — Architecture service                                ║
+# ║                                                                   ║
+# ║  Add this to the existing Caddyfile of your detector deploy,    ║
+# ║  or use it standalone if the architect runs on its own VPS.     ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+architect.YOUR_DOMAIN.com {
+    @tailscale_only {
+        remote_ip 100.64.0.0/10
+    }
+    @blocked {
+        not remote_ip 100.64.0.0/10
+    }
+    handle @blocked {
+        respond "Forbidden" 403
+    }
+
+    handle @tailscale_only {
+        reverse_proxy architect:3001 {
+            header_up X-Real-IP {remote_host}
+            transport http {
+                response_header_timeout 1800s
+                read_timeout 1800s
+            }
+        }
+    }
+
+    log {
+        output file /data/architect-access.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Frame-Options "DENY"
+        -Server
+    }
+}

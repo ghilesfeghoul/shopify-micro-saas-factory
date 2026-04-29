@@ -1,0 +1,44 @@
+{
+  "name": "@micro-saas-factory/opportunity-architecture",
+  "version": "1.0.0",
+  "description": "Agent Architecte — génère des specs techniques Shopify à partir d'opportunités scorées",
+  "main": "dist/api/server.js",
+  "author": "Ghiles FEGHOUL <ghiles.feghoul@gmail.com>",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/api/server.ts",
+    "start": "node dist/api/server.js",
+    "generate": "tsx src/cli.ts generate",
+    "list": "tsx src/cli.ts list",
+    "show": "tsx src/cli.ts show",
+    "stats": "tsx src/cli.ts stats",
+    "render": "tsx src/cli.ts render",
+    "poll": "tsx src/cli.ts poll",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "db:generate": "prisma generate",
+    "secret:generate": "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
+    "test:claude-code": "tsx src/llm/test-claude-code.ts",
+    "test:detector": "tsx src/detector-client/test-connection.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.1",
+    "@prisma/client": "^5.22.0",
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.1",
+    "winston": "^3.17.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.5",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

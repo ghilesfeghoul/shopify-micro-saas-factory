@@ -1,0 +1,58 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  docker-compose.yml — Opportunity Architecture standalone        ║
+# ║                                                                   ║
+# ║  Assumes opportunity-detector is running separately (same        ║
+# ║  Docker network or accessible via Tailscale).                    ║
+# ║                                                                   ║
+# ║  To run alongside detector, see deploy/docker-compose.full.yml  ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+services:
+  architect:
+    build:
+      context: ..
+      dockerfile: deploy/architect.Dockerfile
+    container_name: msf-architect
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: file:/data/architect.db
+
+      # LLM
+      LLM_BACKEND: ${LLM_BACKEND:-anthropic-api}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-opus-4-7}
+
+      # Auth
+      HMAC_SECRET: ${HMAC_SECRET}
+      IP_ALLOWLIST: ${IP_ALLOWLIST:-172.16.0.0/12,127.0.0.1}
+
+      # Server
+      HOST: 0.0.0.0
+      PORT: 3001
+
+      # Detector connection
+      DETECTOR_URL: ${DETECTOR_URL}
+      DETECTOR_HMAC_SECRET: ${DETECTOR_HMAC_SECRET}
+
+      # Auto-trigger
+      AUTO_TRIGGER_SCORE_THRESHOLD: ${AUTO_TRIGGER_SCORE_THRESHOLD:-40}
+      POLL_LIMIT: ${POLL_LIMIT:-50}
+
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - architect_data:/data
+      - architect_logs:/app/logs
+    networks:
+      - msf-network
+    expose:
+      - '3001'
+
+volumes:
+  architect_data:
+  architect_logs:
+
+networks:
+  msf-network:
+    external: true
+    name: msf-network

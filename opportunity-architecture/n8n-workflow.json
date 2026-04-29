@@ -1,0 +1,124 @@
+{
+  "name": "Architecture — Daily Poll for Auto-Generation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Daily 9am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const crypto = require('crypto');\nconst HMAC_SECRET = $env.ARCHITECT_HMAC_SECRET;\nconst METHOD = 'POST';\nconst PATH = '/architect/poll';\nconst body = {};\nconst bodyString = JSON.stringify(body);\nconst timestamp = Date.now().toString();\nconst nonce = crypto.randomBytes(16).toString('hex');\nconst bodyHash = crypto.createHmac('sha256', '').update(bodyString).digest('hex');\nconst signingString = `${METHOD}\\n${PATH}\\n${timestamp}\\n${nonce}\\n${bodyHash}`;\nconst signature = crypto.createHmac('sha256', HMAC_SECRET).update(signingString).digest('hex');\nreturn [{ json: { body, headers: { 'Content-Type': 'application/json', 'x-signature-timestamp': timestamp, 'x-signature-nonce': nonce, 'x-signature': signature } } }];"
+      },
+      "id": "sign-request",
+      "name": "Sign Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.ARCHITECT_URL}}/architect/poll",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{$json.headers}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.body}}",
+        "options": {
+          "timeout": 1800000
+        }
+      },
+      "id": "trigger-poll",
+      "name": "Trigger Poll",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-new-specs",
+              "leftValue": "={{$json.autoTriggered}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-results",
+      "name": "Has new specs?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.NOTIFICATION_FROM_EMAIL}}",
+        "toEmail": "={{$env.NOTIFICATION_TO_EMAIL}}",
+        "subject": "🏗️ {{$json.autoTriggered}} new Shopify app spec(s) auto-generated",
+        "emailFormat": "html",
+        "html": "<h2>Daily Architecture Poll</h2><p><strong>Opportunities fetched:</strong> {{$json.fetched}}<br><strong>Above threshold:</strong> {{$json.newOpportunities}}<br><strong>Specs generated:</strong> {{$json.autoTriggered}}</p>{{$json.errors.length > 0 ? '<h3>Errors</h3><ul>' + $json.errors.map(e => `<li>${e}</li>`).join('') + '</ul>' : ''}}<p><a href=\"{{$env.ARCHITECT_URL}}/specs\">View specs →</a></p>"
+      },
+      "id": "send-email",
+      "name": "Email Digest",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "content": "= No new specs auto-generated today."
+      },
+      "id": "no-specs-log",
+      "name": "Log: No new specs",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1120, 400]
+    }
+  ],
+  "connections": {
+    "Daily 9am": {
+      "main": [[{ "node": "Sign Request", "type": "main", "index": 0 }]]
+    },
+    "Sign Request": {
+      "main": [[{ "node": "Trigger Poll", "type": "main", "index": 0 }]]
+    },
+    "Trigger Poll": {
+      "main": [[{ "node": "Has new specs?", "type": "main", "index": 0 }]]
+    },
+    "Has new specs?": {
+      "main": [
+        [{ "node": "Email Digest", "type": "main", "index": 0 }],
+        [{ "node": "Log: No new specs", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
