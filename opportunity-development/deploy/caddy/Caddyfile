@@ -1,0 +1,39 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  Caddyfile — Development service                                 ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+development.YOUR_DOMAIN.com {
+    @tailscale_only {
+        remote_ip 100.64.0.0/10
+    }
+    @blocked {
+        not remote_ip 100.64.0.0/10
+    }
+    handle @blocked {
+        respond "Forbidden" 403
+    }
+
+    handle @tailscale_only {
+        reverse_proxy development:3002 {
+            header_up X-Real-IP {remote_host}
+            transport http {
+                # Generation runs can take 30+ minutes
+                response_header_timeout 3600s
+                read_timeout 3600s
+            }
+        }
+    }
+
+    log {
+        output file /data/development-access.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Frame-Options "DENY"
+        -Server
+    }
+}

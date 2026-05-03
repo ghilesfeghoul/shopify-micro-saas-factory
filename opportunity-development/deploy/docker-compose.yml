@@ -1,0 +1,71 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  docker-compose.yml — Opportunity Development standalone         ║
+# ║                                                                   ║
+# ║  IMPORTANT: in production, Claude Code subprocess auth is tricky ║
+# ║  because Pro/Max OAuth needs interactive flow. For 24/7 prod,    ║
+# ║  use ANTHROPIC_API_KEY (LLM_BACKEND=anthropic-api).              ║
+# ║                                                                   ║
+# ║  This compose file is most useful for SELF-HOSTED scenarios on   ║
+# ║  your Mac, or for paid API mode on VPS.                          ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+services:
+  development:
+    build:
+      context: ..
+      dockerfile: deploy/development.Dockerfile
+    container_name: msf-development
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: file:/data/development.db
+
+      # LLM (in container, default to API since Claude Code OAuth is tricky in containers)
+      LLM_BACKEND: ${LLM_BACKEND:-anthropic-api}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-opus-4-7}
+
+      # Auth
+      HMAC_SECRET: ${HMAC_SECRET}
+      IP_ALLOWLIST: ${IP_ALLOWLIST:-172.16.0.0/12,127.0.0.1}
+
+      # Server
+      HOST: 0.0.0.0
+      PORT: 3002
+
+      # Architect connection
+      ARCHITECT_URL: ${ARCHITECT_URL}
+      ARCHITECT_HMAC_SECRET: ${ARCHITECT_HMAC_SECRET}
+
+      # Workspace
+      APPS_ROOT: /apps
+      GIT_AUTHOR_NAME: ${GIT_AUTHOR_NAME:-MSF Dev Agent}
+      GIT_AUTHOR_EMAIL: ${GIT_AUTHOR_EMAIL:-dev@micro-saas-factory.local}
+
+      # Concurrency
+      MAX_PARALLEL_SUBAGENTS: ${MAX_PARALLEL_SUBAGENTS:-3}
+
+      # Skills (optional)
+      SKILLS_PATH: ${SKILLS_PATH:-}
+
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - dev_data:/data
+      - dev_apps:/apps
+      - dev_logs:/app/logs
+      # If you have skills installed locally, mount them:
+      # - ${HOST_SKILLS_PATH:-/dev/null}:/skills:ro
+    networks:
+      - msf-network
+    expose:
+      - '3002'
+
+volumes:
+  dev_data:
+  dev_apps:
+  dev_logs:
+
+networks:
+  msf-network:
+    external: true
+    name: msf-network

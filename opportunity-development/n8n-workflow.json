@@ -1,0 +1,107 @@
+{
+  "name": "Development — Auto-generate from approved specs",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 10 * * *" }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Daily 10am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const crypto = require('crypto');\nconst SECRET = $env.ARCHITECT_HMAC_SECRET;\nconst METHOD = 'GET';\nconst PATH = '/specs?status=approved&limit=10';\nconst BASE = '/specs';\nconst body = '';\nconst timestamp = Date.now().toString();\nconst nonce = crypto.randomBytes(16).toString('hex');\nconst bodyHash = crypto.createHmac('sha256', '').update(body).digest('hex');\nconst signingString = `${METHOD}\\n${BASE}\\n${timestamp}\\n${nonce}\\n${bodyHash}`;\nconst signature = crypto.createHmac('sha256', SECRET).update(signingString).digest('hex');\nreturn [{ json: { headers: { 'x-signature-timestamp': timestamp, 'x-signature-nonce': nonce, 'x-signature': signature } } }];"
+      },
+      "id": "sign-architect",
+      "name": "Sign Architect call",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.ARCHITECT_URL}}/specs?status=approved&limit=10",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{$json.headers}}"
+      },
+      "id": "fetch-approved",
+      "name": "Fetch approved specs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "specs",
+        "options": {}
+      },
+      "id": "split-specs",
+      "name": "Split specs",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const crypto = require('crypto');\nconst SECRET = $env.DEVELOPMENT_HMAC_SECRET;\nconst METHOD = 'POST';\nconst PATH = '/develop/generate';\nconst body = { specId: $json.specId, async: true };\nconst bodyString = JSON.stringify(body);\nconst timestamp = Date.now().toString();\nconst nonce = crypto.randomBytes(16).toString('hex');\nconst bodyHash = crypto.createHmac('sha256', '').update(bodyString).digest('hex');\nconst signingString = `${METHOD}\\n${PATH}\\n${timestamp}\\n${nonce}\\n${bodyHash}`;\nconst signature = crypto.createHmac('sha256', SECRET).update(signingString).digest('hex');\nreturn [{ json: { body, headers: { 'Content-Type': 'application/json', 'x-signature-timestamp': timestamp, 'x-signature-nonce': nonce, 'x-signature': signature } } }];"
+      },
+      "id": "sign-development",
+      "name": "Sign Development call",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.DEVELOPMENT_URL}}/develop/generate",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{$json.headers}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.body}}"
+      },
+      "id": "trigger-generation",
+      "name": "Trigger generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.NOTIFICATION_FROM_EMAIL}}",
+        "toEmail": "={{$env.NOTIFICATION_TO_EMAIL}}",
+        "subject": "🛠️ {{$json.appId}} generation started",
+        "emailFormat": "html",
+        "html": "<h2>App generation started</h2><p><strong>App ID:</strong> {{$json.appId}}<br><strong>Run ID:</strong> {{$json.runId}}<br><strong>Workspace:</strong> {{$json.workspacePath}}</p><p>Track progress: <a href=\"{{$env.DEVELOPMENT_URL}}/develop/runs/{{$json.runId}}\">{{$env.DEVELOPMENT_URL}}/develop/runs/{{$json.runId}}</a></p>"
+      },
+      "id": "send-email",
+      "name": "Notify",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1560, 300]
+    }
+  ],
+  "connections": {
+    "Daily 10am": { "main": [[{ "node": "Sign Architect call", "type": "main", "index": 0 }]] },
+    "Sign Architect call": { "main": [[{ "node": "Fetch approved specs", "type": "main", "index": 0 }]] },
+    "Fetch approved specs": { "main": [[{ "node": "Split specs", "type": "main", "index": 0 }]] },
+    "Split specs": { "main": [[{ "node": "Sign Development call", "type": "main", "index": 0 }]] },
+    "Sign Development call": { "main": [[{ "node": "Trigger generation", "type": "main", "index": 0 }]] },
+    "Trigger generation": { "main": [[{ "node": "Notify", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
